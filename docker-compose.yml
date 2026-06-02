@@ -1,0 +1,41 @@
+services:
+  # Microsoft SQL Server 2022 (Developer edition is free).
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: creditrisk-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${DB_PASSWORD:-Your_strong_Pass123}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # The scoring API.
+  api:
+    build: .
+    container_name: creditrisk-api
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      DB_SERVER: "sqlserver,1433"
+      DB_NAME: "CreditRisk"
+      DB_USER: "sa"
+      DB_PASSWORD: "${DB_PASSWORD:-Your_strong_Pass123}"
+      DB_DRIVER: "ODBC Driver 18 for SQL Server"
+      DB_TRUST_CERT: "yes"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models   # serve the trained artifact
+
+volumes:
+  mssql_data:
